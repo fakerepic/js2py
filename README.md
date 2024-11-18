@@ -7,7 +7,7 @@ A JavaScript to Python transpiler implemented in Rust that converts JavaScript c
 This project is organized as a Rust workspace with the following components (crates):
 
 - `js2py_lexer`: Tokenization and lexical analysis of JavaScript source code
-- `js2py_parser`: Parser that builds an Abstract Syntax Tree (AST) from JavaScript tokens
+- `js2py_parser`: Parser that builds an Abstract Syntax Tree (AST) from JavaScript source code
 - `js2py_translator`: Source-to-source translator that converts JavaScript AST to Python code
 
 ## Requirements
@@ -90,7 +90,7 @@ println!("{}", python_code);
 To use the complete pipeline CLI:
 
 ```bash
-cargo run --bin js2py input.js
+cargo run --bin js2py_translator input.js
 ```
 
 This will output the transformed Python code to stdout.
