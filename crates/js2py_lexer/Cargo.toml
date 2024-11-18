@@ -1,0 +1,7 @@
+[package]
+authors.workspace = true
+version.workspace = true
+name = "js2py_lexer"
+edition.workspace = true
+
+[dependencies]

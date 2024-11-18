@@ -1,0 +1,8 @@
+[package]
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+name = "js2py_translator"
+
+[dependencies]
+js2py_parser = { workspace = true }

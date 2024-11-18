@@ -1,0 +1,10 @@
+[package]
+authors.workspace = true
+version.workspace = true
+name = "js2py_parser"
+edition.workspace = true
+
+[dependencies]
+js2py_lexer = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0"
