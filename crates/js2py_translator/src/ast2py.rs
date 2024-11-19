@@ -36,6 +36,12 @@ impl Ast2Py {
 }
 
 impl Ast2Py {
+    // helper functions:
+    fn source_of(&self, node: &impl GetSpan) -> &str {
+        &self.source[node.span().start..node.span().end]
+    }
+
+    // translate functions:
     fn translate_program(&self, program: &Program) -> String {
         let mut result = String::new();
         program
@@ -55,7 +61,7 @@ impl Ast2Py {
             Statement::FunctionDeclaration(f) => self.translate_function(f),
             Statement::ReturnStatement(r) => self.translate_return_statement(r),
             Statement::VariableDeclarationStatement(v) => self.translate_variable_declaration(v),
-            _ => unimplemented!("unsupported statement"),
+            _ => unimplemented!("unsupported statement {:?}", self.source_of(statement)),
         }
     }
 
@@ -112,7 +118,7 @@ impl Ast2Py {
                 let op = self.translate_binary_operator(bin_expr.operator);
                 format!("{} {} {}", lhs, op, rhs)
             }
-            _ => String::from("unsupported_expression"),
+            _ => unimplemented!("unsupported expression {:?}", self.source_of(expr)),
         }
     }
 
@@ -122,7 +128,7 @@ impl Ast2Py {
             BinaryOperator::Subtraction => "-",
             BinaryOperator::Multiplication => "*",
             BinaryOperator::Division => "/",
-            _ => "unsupported_operator",
+            _ => unimplemented!("unsupported binary operator {:?}", operator),
         }
     }
 }
