@@ -54,7 +54,7 @@ let mut parser = Parser::new(source_code);
 let ast = parser.parse().unwrap();
 
 // Save AST to JSON file
-let writer = std::fs::File::create("output-ast.json").unwrap();
+let writer = std::fs::File::create("output.ast.json").unwrap();
 serde_json::to_writer_pretty(writer, &ast).unwrap();
 ```
 
@@ -64,7 +64,7 @@ To use the parser CLI:
 cargo run --bin js2py_parser input.js
 ```
 
-This will generate an `input.js-ast.json` file containing the AST representation.
+This will generate an `input.js.ast.json` file containing the AST representation.
 
 ### 3. Translation (js2py_translator)
 

@@ -64,7 +64,7 @@ impl Ast2Py {
             Statement::ReturnStatement(r) => self.translate_return_statement(r),
             Statement::VariableDeclarationStatement(v) => self.translate_variable_declaration(v),
             Statement::WhileStatement(w) => self.translate_while_statement(w),
-            Statement::ExpressionStatement(e) => self.translate_expression_statement(e),
+            Statement::ExpressionStatement(e) => self.translate_expression(&e.expression),
             Statement::ContinueStatement(_) => String::from("continue"),
             Statement::BreakStatement(_) => String::from("break"),
             _ => unimplemented!("unsupported statement {:?}", self.source_of(statement)),
@@ -80,10 +80,6 @@ impl Ast2Py {
             String::new()
         };
         format!("if {}:\n{}{}", test, consequent, alternate)
-    }
-
-    fn translate_expression_statement(&self, expression_statement: &ExpressionStatement) -> String {
-        self.translate_expression(&expression_statement.expression)
     }
 
     fn translate_block_statement(&self, block_stmt: &BlockStatement) -> String {
@@ -153,6 +149,7 @@ impl Ast2Py {
             Expression::NumericLiteral(num) => num.value.to_string(),
             Expression::StringLiteral(s) => s.value.to_string(),
             Expression::Identifier(id) => id.name.to_string(),
+            Expression::UnaryExpression(u) => self.translate_unary_expression(u),
             Expression::BinaryExpression(bin_expr) => self.translate_binary_expression(bin_expr),
             Expression::StaticMemberExpression(mem_expr) => self.translate_static_member_expression(mem_expr),
             Expression::ComputedMemberExpression(mem_expr) => self.translate_computed_member_expression(mem_expr),
@@ -162,7 +159,24 @@ impl Ast2Py {
             Expression::CallExpression(call_expr) => self.translate_call_expression(call_expr),
             Expression::LogicalExpression(logic_expr) => self.translate_logical_expression(logic_expr),
             Expression::NullLiteral(_) => String::from("None"),
+            Expression::ParenthesizedExpression(e) => self.translate_expression(&e.expression),
             _ => unimplemented!("unsupported expression {:?}", self.source_of(expr)),
+        }
+    }
+
+    fn translate_unary_expression(&self, unary_expr: &UnaryExpression) -> String {
+        let operator = self.translate_unary_operator(&unary_expr.operator);
+        let argument = self.translate_expression(&unary_expr.argument);
+        format!("{}{}", operator, argument)
+    }
+
+    fn translate_unary_operator(&self, operator: &UnaryOperator) -> String {
+        match operator {
+            UnaryOperator::LogicalNot => "not ".to_string(),
+            _ => serde_json::to_string(&operator)
+                .unwrap_or_else(|_| unimplemented!("unsupported unary operator {:?}", operator))
+                .trim_matches('"')
+                .to_string(),
         }
     }
 
