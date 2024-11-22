@@ -19,7 +19,7 @@ fn main() {
     match program {
         Ok(program) => {
             // Serialize the program to a JSON string and write it to file:
-            let path = format!("{}-ast.json", filename);
+            let path = format!("{}.ast.json", filename);
             let writer = std::fs::File::create(path).unwrap();
             serde_json::to_writer_pretty(writer, &program).unwrap();
         }
