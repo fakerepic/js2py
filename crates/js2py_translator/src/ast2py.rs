@@ -43,16 +43,15 @@ impl Ast2Py {
 
     // translate functions:
     fn translate_program(&self, program: &Program) -> String {
-        let mut result = String::new();
         program
             .body
             .iter()
-            .filter(|statement| !matches!(statement, Statement::EmptyStatement(_)))
-            .for_each(|statement| {
-                let translated = self.translate_statement(statement);
-                writeln!(result, "{}", translated).unwrap();
-            });
-        result
+            .filter(|stmt| !matches!(stmt, Statement::EmptyStatement(_)))
+            .map(|stmt| self.translate_statement(stmt))
+            .collect::<Vec<_>>()
+            .join("\n")
+            .trim_end()
+            .to_string()
     }
 
     fn translate_statement(&self, statement: &Statement) -> String {
