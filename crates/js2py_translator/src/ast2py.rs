@@ -43,16 +43,15 @@ impl Ast2Py {
 
     // translate functions:
     fn translate_program(&self, program: &Program) -> String {
-        let mut result = String::new();
         program
             .body
             .iter()
-            .filter(|statement| !matches!(statement, Statement::EmptyStatement(_)))
-            .for_each(|statement| {
-                let translated = self.translate_statement(statement);
-                writeln!(result, "{}", translated).unwrap();
-            });
-        result
+            .filter(|stmt| !matches!(stmt, Statement::EmptyStatement(_)))
+            .map(|stmt| self.translate_statement(stmt))
+            .collect::<Vec<_>>()
+            .join("\n")
+            .trim_end()
+            .to_string()
     }
 
     fn translate_statement(&self, statement: &Statement) -> String {
@@ -73,7 +72,7 @@ impl Ast2Py {
 
     fn translate_if_statement(&self, if_statement: &IfStatement) -> String {
         let test = self.translate_expression(&if_statement.test);
-        let consequent = self.translate_statement(&if_statement.consequent);
+        let consequent = make_indent(&self.translate_statement(&if_statement.consequent), self.indent);
         let alternate = if let Some(alt) = &if_statement.alternate {
             format!("\nelse:\n{}", make_indent(&self.translate_statement(alt), self.indent))
         } else {
@@ -85,8 +84,9 @@ impl Ast2Py {
     fn translate_block_statement(&self, block_stmt: &BlockStatement) -> String {
         block_stmt.body
             .iter()
+            .filter(|stmt| !matches!(stmt, Statement::EmptyStatement(_)))
             .map(|stmt| self.translate_statement(stmt))
-            .map(|code| make_indent(&code, self.indent))
+            // .map(|code| make_indent(&code, self.indent)) // don't indent block!
             .collect::<Vec<_>>()
             .join("\n")
             .trim_end()  // 去掉最后一个多余的换行符
@@ -95,7 +95,7 @@ impl Ast2Py {
 
     fn translate_while_statement(&self, while_stmt: &WhileStatement) -> String {
         let test = self.translate_expression(&while_stmt.test);
-        let body = self.translate_statement(&while_stmt.body);
+        let body = make_indent(&self.translate_statement(&while_stmt.body), self.indent);
         format!("while {}:\n{}", test, body)
     }
 
@@ -159,9 +159,13 @@ impl Ast2Py {
             Expression::CallExpression(call_expr) => self.translate_call_expression(call_expr),
             Expression::LogicalExpression(logic_expr) => self.translate_logical_expression(logic_expr),
             Expression::NullLiteral(_) => String::from("None"),
-            Expression::ParenthesizedExpression(e) => self.translate_expression(&e.expression),
+            Expression::ParenthesizedExpression(e) => self.translate_parenthesized_expression(e),
             _ => unimplemented!("unsupported expression {:?}", self.source_of(expr)),
         }
+    }
+
+    fn translate_parenthesized_expression(&self, parent_expr: &ParenthesizedExpression) -> String {
+        format!("({})", self.translate_expression(&parent_expr.expression))
     }
 
     fn translate_unary_expression(&self, unary_expr: &UnaryExpression) -> String {
@@ -294,5 +298,37 @@ impl Ast2Py {
             .unwrap_or_else(|_| unimplemented!("unsupported binary operator {:?}", operator))
             .trim_matches('"')
             .to_string()
+    }
+}
+#[cfg(test)]
+mod test {
+    use js2py_parser::Parser;
+    fn assert_translate(source: &str, expected: &str) {
+        let mut parser = Parser::new(source);
+        let ast = parser.parse().unwrap();
+        let python_code = super::Ast2Py::default().build(&ast).code;
+        assert_eq!(python_code, expected);
+    }
+    #[test]
+    fn test_if_statement_without_curly_braces() {
+        let source = "if (a) b";
+        let expected = "if a:\n    b";
+        assert_translate(source, expected);
+    }
+    #[test]
+    fn test_else_if_statement_without_curly_braces() {
+        let source = "if (a) b; else if (c) d;";
+        let expected = "if a:\n    b\nelse:\n    if c:\n        d";
+        assert_translate(source, expected);
+    }
+    #[test]
+    fn test_while_statement_without_curly_braces() {
+        let source = "while (a) b";
+        let expected = "while a:\n    b";
+        assert_translate(source, expected);
+    }
+    #[test]
+    fn test_parenthesized_expression() {
+        assert_translate("(1 + 2) * 3", "(1 + 2) * 3");
     }
 }
