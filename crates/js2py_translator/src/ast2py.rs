@@ -159,9 +159,13 @@ impl Ast2Py {
             Expression::CallExpression(call_expr) => self.translate_call_expression(call_expr),
             Expression::LogicalExpression(logic_expr) => self.translate_logical_expression(logic_expr),
             Expression::NullLiteral(_) => String::from("None"),
-            Expression::ParenthesizedExpression(e) => self.translate_expression(&e.expression),
+            Expression::ParenthesizedExpression(e) => self.translate_parenthesized_expression(e),
             _ => unimplemented!("unsupported expression {:?}", self.source_of(expr)),
         }
+    }
+
+    fn translate_parenthesized_expression(&self, parent_expr: &ParenthesizedExpression) -> String {
+        format!("({})", self.translate_expression(&parent_expr.expression))
     }
 
     fn translate_unary_expression(&self, unary_expr: &UnaryExpression) -> String {
@@ -322,5 +326,9 @@ mod test {
         let source = "while (a) b";
         let expected = "while a:\n    b";
         assert_translate(source, expected);
+    }
+    #[test]
+    fn test_parenthesized_expression() {
+        assert_translate("(1 + 2) * 3", "(1 + 2) * 3");
     }
 }
