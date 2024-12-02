@@ -1,6 +1,6 @@
 use super::*;
 use js2py_parser::{ast::*, syntax::operator::*};
-use std::{fmt::Write, sync::Arc};
+use std::sync::Arc;
 
 pub struct Ast2PyReturn {
     pub code: String,
@@ -54,6 +54,7 @@ impl Ast2Py {
             .to_string()
     }
 
+    #[rustfmt::skip]
     fn translate_statement(&self, statement: &Statement) -> String {
         match statement {
             Statement::BlockStatement(b) => self.translate_block_statement(b),
@@ -72,9 +73,15 @@ impl Ast2Py {
 
     fn translate_if_statement(&self, if_statement: &IfStatement) -> String {
         let test = self.translate_expression(&if_statement.test);
-        let consequent = make_indent(&self.translate_statement(&if_statement.consequent), self.indent);
+        let consequent = make_indent(
+            &self.translate_statement(&if_statement.consequent),
+            self.indent,
+        );
         let alternate = if let Some(alt) = &if_statement.alternate {
-            format!("\nelse:\n{}", make_indent(&self.translate_statement(alt), self.indent))
+            format!(
+                "\nelse:\n{}",
+                make_indent(&self.translate_statement(alt), self.indent)
+            )
         } else {
             String::new()
         };
@@ -82,21 +89,25 @@ impl Ast2Py {
     }
 
     fn translate_block_statement(&self, block_stmt: &BlockStatement) -> String {
-        block_stmt.body
+        block_stmt
+            .body
             .iter()
             .filter(|stmt| !matches!(stmt, Statement::EmptyStatement(_)))
             .map(|stmt| self.translate_statement(stmt))
             // .map(|code| make_indent(&code, self.indent)) // don't indent block!
             .collect::<Vec<_>>()
             .join("\n")
-            .trim_end()  // 去掉最后一个多余的换行符
+            .trim_end() // 去掉最后一个多余的换行符
             .to_string()
     }
 
     fn translate_while_statement(&self, while_stmt: &WhileStatement) -> String {
         let test = self.translate_expression(&while_stmt.test);
-        let body = make_indent(&self.translate_statement(&while_stmt.body), self.indent);
-        format!("while {}:\n{}", test, body)
+        let body = match self.translate_statement(&while_stmt.body) {
+            body if body.is_empty() => "pass".to_string(),
+            body => body,
+        };
+        format!("while {}:\n{}", test, make_indent(&body, self.indent))
     }
 
     fn translate_variable_declaration(&self, var: &VariableDeclaration) -> String {
@@ -110,7 +121,7 @@ impl Ast2Py {
             .id
             .as_ref()
             .map(|id| id.name.to_string())
-            .unwrap_or_else(|| "anonymous".to_string());
+            .unwrap_or_else(|| unimplemented!("anonymous function is not supported"));
 
         let params = function
             .params
@@ -120,19 +131,30 @@ impl Ast2Py {
             .collect::<Vec<_>>()
             .join(", ");
 
-        let body = if let Some(body) = &function.body {
-            body.statements
-                .iter()
-                .filter(|stmt| !matches!(stmt, Statement::EmptyStatement(_)))
-                .map(|stmt| self.translate_statement(stmt))
-                .map(|code| make_indent(&code, self.indent))
-                .collect::<Vec<_>>()
-                .join("\n")
-        } else {
-            format!("{:indent$}pass", "", indent = self.indent)
+        let body = match function
+            .body
+            .as_ref()
+            .map(|body| {
+                body.statements
+                    .iter()
+                    .filter(|stmt| !matches!(stmt, Statement::EmptyStatement(_)))
+                    .map(|stmt| self.translate_statement(stmt))
+                    .map(|code| make_indent(&code, self.indent))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+            .unwrap_or_default()
+        {
+            body if body.is_empty() => "pass".to_string(),
+            body => body,
         };
 
-        format!("def {}({}):\n{}", name, params, body)
+        format!(
+            "def {}({}):\n{}",
+            name,
+            params,
+            make_indent(&body, self.indent)
+        )
     }
 
     fn translate_return_statement(&self, ret_stmt: &ReturnStatement) -> String {
@@ -143,6 +165,7 @@ impl Ast2Py {
         }
     }
 
+    #[rustfmt::skip]
     fn translate_expression(&self, expr: &Expression) -> String {
         match expr {
             Expression::BooleanLiteral(b) => (if b.value { "True" } else { "False" }).to_string(),
@@ -171,16 +194,22 @@ impl Ast2Py {
     fn translate_unary_expression(&self, unary_expr: &UnaryExpression) -> String {
         let operator = self.translate_unary_operator(&unary_expr.operator);
         let argument = self.translate_expression(&unary_expr.argument);
+        if operator == "not " {
+            return format!("({}{})", operator, argument);
+        }
         format!("{}{}", operator, argument)
     }
 
     fn translate_unary_operator(&self, operator: &UnaryOperator) -> String {
         match operator {
             UnaryOperator::LogicalNot => "not ".to_string(),
-            _ => serde_json::to_string(&operator)
-                .unwrap_or_else(|_| unimplemented!("unsupported unary operator {:?}", operator))
-                .trim_matches('"')
-                .to_string(),
+            UnaryOperator::UnaryPlus => "+".to_string(),
+            UnaryOperator::UnaryNegation => "0".to_string(),
+            UnaryOperator::BitwiseNot => "~".to_string(),
+            _ => unimplemented!(
+                "unsupported unary operator {:?}",
+                serde_json::to_string(operator).unwrap()
+            ),
         }
     }
 
@@ -196,14 +225,17 @@ impl Ast2Py {
         let operator = match logic_expr.operator {
             LogicalOperator::Or => "or",
             LogicalOperator::And => "and",
-            _ => unimplemented!("unsupported logical operator {:?}", self.source_of(logic_expr)), // Python 没有 ?? 操作符
+            _ => unimplemented!(
+                "unsupported logical operator {:?}",
+                self.source_of(logic_expr)
+            ), // Python 没有 ?? 操作符
         };
         format!("{} {} {}", left, operator, right)
     }
 
     fn translate_call_expression(&self, call_expr: &CallExpression) -> String {
         let callee = self.translate_expression(&call_expr.callee);
-    
+
         let arguments = call_expr
             .arguments
             .iter()
@@ -213,8 +245,10 @@ impl Ast2Py {
 
         // 特殊判断：如果 callee 是 StaticMemberExpression，且 property 为 push
         if let Expression::StaticMemberExpression(mem_expr) = &call_expr.callee {
-            if mem_expr.property.name == "log" {
-                return format!("print({})", arguments);
+            if let Expression::Identifier(id) = &mem_expr.object {
+                if id.name == "console" && mem_expr.property.name == "log" {
+                    return format!("print({})", arguments);
+                }
             }
             if mem_expr.property.name == "push" {
                 let object = self.translate_expression(&mem_expr.object);
@@ -238,7 +272,7 @@ impl Ast2Py {
             .map(|prop| {
                 let var_name = match &prop.key {
                     PropertyKey::IdentifierName(id) => format!("\"{}\"", id.name),
-                    PropertyKey::StringLiteral(s) => format!("{}", s.value),
+                    PropertyKey::StringLiteral(s) => s.value.to_string(),
                     PropertyKey::NumericLiteral(n) => n.value.to_string(),
                 };
                 let key = var_name;
@@ -282,24 +316,62 @@ impl Ast2Py {
     fn translate_assignment_expression(&self, assign_expr: &AssignmentExpression) -> String {
         let left = match &assign_expr.left {
             AssignmentTarget::Identifier(id) => id.name.to_string(),
-            AssignmentTarget::StaticMemberExpression(mem_expr) => self.translate_static_member_expression(mem_expr),
-            AssignmentTarget::ComputedMemberExpression(mem_expr) => self.translate_computed_member_expression(mem_expr),
+            AssignmentTarget::StaticMemberExpression(mem_expr) => {
+                self.translate_static_member_expression(mem_expr)
+            }
+            AssignmentTarget::ComputedMemberExpression(mem_expr) => {
+                self.translate_computed_member_expression(mem_expr)
+            }
         };
-        let operator = serde_json::to_string(&assign_expr.operator)
-            .unwrap_or_else(|_| unimplemented!("unsupported assignment operator {:?}", assign_expr.operator))
-            .trim_matches('"')
-            .to_string();
+        let operator = self.translate_assign_operator(&assign_expr.operator);
         let right = self.translate_expression(&assign_expr.right);
         format!("{} {} {}", left, operator, right)
     }
 
+    fn translate_assign_operator(&self, operator: &AssignmentOperator) -> String {
+        use AssignmentOperator::*;
+        match operator {
+            ShiftRightZeroFill | LogicalAnd | LogicalOr | LogicalNullish => unimplemented!(
+                "unsupported assignment operator {:?}",
+                serde_json::to_string(&operator).unwrap()
+            ),
+            o => serde_json::to_string(o)
+                .unwrap()
+                .trim_matches('"')
+                .to_string(),
+        }
+    }
+
     fn translate_binary_operator(&self, operator: BinaryOperator) -> String {
-        serde_json::to_string(&operator)
-            .unwrap_or_else(|_| unimplemented!("unsupported binary operator {:?}", operator))
-            .trim_matches('"')
-            .to_string()
+        use BinaryOperator::*;
+        match operator {
+            StrictEquality => "is",
+            StrictInequality => "is not",
+            Equality => "==",
+            Inequality => "!=",
+            LessThan => "<",
+            GreaterThan => ">",
+            Addition => "+",
+            Subtraction => "-",
+            Multiplication => "*",
+            Division => "/",
+            Remainder => "%",
+            BitwiseOR => "|",
+            BitwiseXOR => "^",
+            LessEqualThan => "<=",
+            GreaterEqualThan => ">=",
+            ShiftLeft => "<<",
+            ShiftRight => ">>",
+            BitwiseAnd => "&",
+            _ => unimplemented!(
+                "unsupported binary operator {:?}",
+                serde_json::to_string(&operator).unwrap()
+            ),
+        }
+        .to_string()
     }
 }
+
 #[cfg(test)]
 mod test {
     use js2py_parser::Parser;
@@ -330,5 +402,17 @@ mod test {
     #[test]
     fn test_parenthesized_expression() {
         assert_translate("(1 + 2) * 3", "(1 + 2) * 3");
+    }
+    #[test]
+    fn test_empty_function() {
+        let source = "function foo() {}";
+        let expected = "def foo():\n    pass";
+        assert_translate(source, expected);
+    }
+    #[test]
+    fn test_empty_while() {
+        let source = "while (true);";
+        let expected = "while True:\n    pass";
+        assert_translate(source, expected);
     }
 }
