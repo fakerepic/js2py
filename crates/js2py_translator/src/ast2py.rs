@@ -74,13 +74,18 @@ impl Ast2Py {
     fn translate_if_statement(&self, if_statement: &IfStatement) -> String {
         let test = self.translate_expression(&if_statement.test);
         let consequent = make_indent(
-            &self.translate_statement(&if_statement.consequent),
+            &self
+                .translate_statement(&if_statement.consequent)
+                .with_placeholder("pass"),
             self.indent,
         );
         let alternate = if let Some(alt) = &if_statement.alternate {
             format!(
                 "\nelse:\n{}",
-                make_indent(&self.translate_statement(alt), self.indent)
+                make_indent(
+                    &self.translate_statement(alt).with_placeholder("pass"),
+                    self.indent
+                )
             )
         } else {
             String::new()
@@ -103,10 +108,9 @@ impl Ast2Py {
 
     fn translate_while_statement(&self, while_stmt: &WhileStatement) -> String {
         let test = self.translate_expression(&while_stmt.test);
-        let body = match self.translate_statement(&while_stmt.body) {
-            body if body.is_empty() => "pass".to_string(),
-            body => body,
-        };
+        let body = self
+            .translate_statement(&while_stmt.body)
+            .with_placeholder("pass");
         format!("while {}:\n{}", test, make_indent(&body, self.indent))
     }
 
@@ -131,7 +135,7 @@ impl Ast2Py {
             .collect::<Vec<_>>()
             .join(", ");
 
-        let body = match function
+        let body = function
             .body
             .as_ref()
             .map(|body| {
@@ -139,15 +143,11 @@ impl Ast2Py {
                     .iter()
                     .filter(|stmt| !matches!(stmt, Statement::EmptyStatement(_)))
                     .map(|stmt| self.translate_statement(stmt))
-                    .map(|code| make_indent(&code, self.indent))
                     .collect::<Vec<_>>()
                     .join("\n")
             })
             .unwrap_or_default()
-        {
-            body if body.is_empty() => "pass".to_string(),
-            body => body,
-        };
+            .with_placeholder("pass");
 
         format!(
             "def {}({}):\n{}",
@@ -404,6 +404,12 @@ mod test {
         assert_translate("(1 + 2) * 3", "(1 + 2) * 3");
     }
     #[test]
+    fn test_simple_function() {
+        let source = "function foo() {return}";
+        let expected = "def foo():\n    return";
+        assert_translate(source, expected);
+    }
+    #[test]
     fn test_empty_function() {
         let source = "function foo() {}";
         let expected = "def foo():\n    pass";
@@ -413,6 +419,12 @@ mod test {
     fn test_empty_while() {
         let source = "while (true);";
         let expected = "while True:\n    pass";
+        assert_translate(source, expected);
+    }
+    #[test]
+    fn test_empty_if_else() {
+        let source = "if (true){}else{};";
+        let expected = "if True:\n    pass\nelse:\n    pass";
         assert_translate(source, expected);
     }
 }

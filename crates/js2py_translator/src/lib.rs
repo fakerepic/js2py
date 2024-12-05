@@ -7,3 +7,16 @@ pub fn make_indent(s: &str, indent: usize) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
+
+pub trait PlaceHolder {
+    fn with_placeholder(self, placeholder: &str) -> String;
+}
+impl PlaceHolder for String {
+    fn with_placeholder(self, placeholder: &str) -> String {
+        if self.is_empty() {
+            placeholder.to_string()
+        } else {
+            self
+        }
+    }
+}
