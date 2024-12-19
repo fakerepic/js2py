@@ -204,7 +204,7 @@ impl Ast2Py {
         match operator {
             UnaryOperator::LogicalNot => "not ".to_string(),
             UnaryOperator::UnaryPlus => "+".to_string(),
-            UnaryOperator::UnaryNegation => "0".to_string(),
+            UnaryOperator::UnaryNegation => "-".to_string(),
             UnaryOperator::BitwiseNot => "~".to_string(),
             _ => unimplemented!(
                 "unsupported unary operator {:?}",
