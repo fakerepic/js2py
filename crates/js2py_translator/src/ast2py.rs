@@ -43,15 +43,7 @@ impl Ast2Py {
 
     // translate functions:
     fn translate_program(&self, program: &Program) -> String {
-        program
-            .body
-            .iter()
-            .filter(|stmt| !matches!(stmt, Statement::EmptyStatement(_)))
-            .map(|stmt| self.translate_statement(stmt))
-            .collect::<Vec<_>>()
-            .join("\n")
-            .trim_end()
-            .to_string()
+        self.translate_statements(&program.body)
     }
 
     #[rustfmt::skip]
@@ -69,6 +61,17 @@ impl Ast2Py {
             Statement::BreakStatement(_) => String::from("break"),
             _ => unimplemented!("unsupported statement {:?}", self.source_of(statement)),
         }
+    }
+
+    fn translate_statements(&self, stmts: &[Statement<'_>]) -> String {
+        stmts
+            .iter()
+            .filter(|stmt| !matches!(stmt, Statement::EmptyStatement(_)))
+            .map(|stmt| self.translate_statement(stmt))
+            .collect::<Vec<_>>()
+            .join("\n")
+            .trim_end()
+            .to_string()
     }
 
     fn translate_if_statement(&self, if_statement: &IfStatement) -> String {
@@ -94,16 +97,7 @@ impl Ast2Py {
     }
 
     fn translate_block_statement(&self, block_stmt: &BlockStatement) -> String {
-        block_stmt
-            .body
-            .iter()
-            .filter(|stmt| !matches!(stmt, Statement::EmptyStatement(_)))
-            .map(|stmt| self.translate_statement(stmt))
-            // .map(|code| make_indent(&code, self.indent)) // don't indent block!
-            .collect::<Vec<_>>()
-            .join("\n")
-            .trim_end() // 去掉最后一个多余的换行符
-            .to_string()
+        self.translate_statements(&block_stmt.body)
     }
 
     fn translate_while_statement(&self, while_stmt: &WhileStatement) -> String {
@@ -138,14 +132,7 @@ impl Ast2Py {
         let body = function
             .body
             .as_ref()
-            .map(|body| {
-                body.statements
-                    .iter()
-                    .filter(|stmt| !matches!(stmt, Statement::EmptyStatement(_)))
-                    .map(|stmt| self.translate_statement(stmt))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })
+            .map(|body| self.translate_statements(&body.statements))
             .unwrap_or_default()
             .with_placeholder("pass");
 
